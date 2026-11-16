@@ -1,137 +1,44 @@
-# Mosher Labs Basic Repo Template - Project Memory
-
-This file contains persistent context for Claude Code sessions on this project.
-It will be automatically loaded at the start of every session.
+# tempo-service - Project Memory
 
 ## Project Overview
 
-This is a template repository for creating new Mosher Labs projects. It provides
-a standardized starting point with pre-configured tooling and workflows.
+A small HTTP service that turns artist + title into a BPM: iTunes Search API,
+30 second preview, Essentia, SQLite cache. It runs on the Mosher Labs k3s
+homelab (`homelab-gitops/apps/tempo-service`) as a ClusterIP Service with no
+tunnel, because it has no auth. It is meant to back `spotify-mcp` when
+ReccoBeats has no tempo for a track.
+
+The code started as an artifact in a claude.ai chat. The flat layout
+(`app.py`, `analyzer.py`, `fill_tempos.py`) is kept so changes can move
+between that chat and this repo without restructuring.
 
 **Key Details:**
 
-- **Purpose:** Template for new repositories
-- **CI/CD:** GitHub Actions with release workflow
-- **Linting:** Pre-commit hooks for code quality
-- **Pattern:** Fork or use as template, then customize
+- **Language:** Python 3.12, FastAPI, managed with `uv`
+- **Essentia:** pinned to `2.1b6.dev1389`, the newest build with cp312
+  wheels. Later builds ship cp314 wheels only
+- **Image:** `ghcr.io/mosher-labs/tempo-service:<short sha>`, built by
+  `.github/workflows/image.yml` on push to `main`
+- **Data:** `TEMPO_DB` (default `/data/tempo.db`) on a ReadWriteOnce volume
 
-## Repository Structure
+## Working on This Repo
 
-```text
-basic-repo-template/
-├── .github/workflows/     # CI/CD workflows
-│   └── release.yml        # Semantic versioning & releases
-├── .pre-commit-config.yaml
-├── README.md
-└── CLAUDE.md
-```
+1. Branch from `main`: `git checkout -b feat/description`
+1. Run the tests: `uv sync && uv run pytest`
+1. Run pre-commit before committing: `pre-commit run --all-files`
+1. Commit with Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
+1. Open a PR. Merging to `main` builds a new image; update the digest in
+   `homelab-gitops/apps/tempo-service/application.yaml`
 
-## Using This Template
+## Constraints
 
-### Creating a New Repo
-
-1. **Use as template:** Click "Use this template" on GitHub
-1. **Clone locally:** `git clone <your-new-repo>`
-1. **Update README.md:** Replace template content with project description
-1. **Customize workflows:** Adjust `.github/workflows/` as needed
-1. **Install pre-commit:** `pre-commit install`
-1. **Create CLAUDE.md:** Document project-specific context
-
-### Pre-configured Features
-
-- **Release workflow:** Automatic semantic versioning from Conventional Commits
-- **Pre-commit hooks:** YAML, Markdown, and commit message linting
-- **GitHub Actions:** Ready to use CI/CD
-- **Documentation:** README template with badges
-
-## Git Workflow
-
-1. **Create feature branch:** `git checkout -b feature/description`
-1. **Make changes** to code or documentation
-1. **ALWAYS run pre-commit BEFORE committing:** `pre-commit run --all-files`
-   - Fix ALL errors (especially markdown and YAML formatting)
-   - Do NOT commit with `--no-verify` unless absolutely necessary
-1. **Commit with conventional format:** `git commit -m "type: description"`
-1. **Push and create PR:** `gh pr create --title "feat: description"`
-1. **Test changes:** If your changes reference shared workflows that were also updated,
-   temporarily change the reference from `@main` to `@your-branch` to test, verify
-   the PR passes, then change back to `@main` before merging
-1. **Merge to main:** Automatic release created based on commits
-
-**Commit Format:** Conventional Commits (enforced by pre-commit hook)
-
-- `feat:` - New feature (triggers minor version bump)
-- `fix:` - Bug fix (triggers patch version bump)
-- `docs:` - Documentation changes (no version bump)
-- `chore:` - Maintenance (no version bump)
-- `refactor:` - Code refactoring (no version bump)
-- `test:` - Temporary test changes (like branch references)
-
-**Breaking changes:** Add `!` after type (e.g., `feat!:`) or include
-`BREAKING CHANGE:` in commit body for major version bump
-
-## Pre-commit Hooks
-
-**Installed hooks:**
-
-- YAML linting (yamllint)
-- Markdown linting (markdownlint)
-- Conventional commit format
-- File hygiene (trailing whitespace, EOF, etc.)
-
-**Setup:**
-
-```bash
-pre-commit install              # One-time setup
-pre-commit run --all-files      # Run manually
-pre-commit autoupdate           # Update hook versions
-```
-
-## Important Notes
-
-### Code Quality Standards
-
-**CRITICAL:** All code must adhere to linter rules from the start. Do NOT write
-code that needs fixing after running pre-commit hooks.
-
-**Markdown (markdownlint):**
-
-Configuration: `.markdownlint.yaml` (allows 2-space indent, 120 char lines)
-
-- Nested lists under unordered items: Use 2-space indentation
-- Nested lists under ordered items: Use 2-space indentation
-- Inline format for simple nested items: `**Item:** Detail 1, Detail 2`
-- Line length: 120 characters max (code/tables excluded)
-- Bare URLs: Allowed in reference sections
-- Bold for emphasis: Allowed in lists
-
-**YAML (yamllint):**
-
-- Maximum line length: 80 characters
-- Use 2-space indentation
-- No trailing whitespace
-- Proper quoting for strings containing special characters
-
-### When Working on This Repo
-
-1. **Write linter-compliant code from the start** - Don't fix after the fact
-1. **Run pre-commit hooks** BEFORE committing (fix all errors!)
-1. **Follow Conventional Commits** - Enables automatic versioning
-1. **Update CLAUDE.md** - Document important project context
-1. **Test shared workflow changes** - Use branch references before merging
+- One replica only: the iTunes rate limiter is in-process.
+- `RhythmExtractor2013` snaps BPM to 5168 / n. Don't tighten test tolerances
+  below that.
+- YAML lines stay under 80 characters (yamllint), outside
+  `.github/workflows`.
 
 ## References
 
-- @README.md - Repository overview
-- Shared Workflows: <https://github.com/Mosher-Labs/.github>
-- Conventional Commits: <https://www.conventionalcommits.org/>
-
----
-
-**Last Updated:** 2025-11-18
-
-This file should be updated whenever:
-
-- Project patterns change
-- Important context is discovered
-- Tooling is added or modified
+- @README.md
+- Shared workflows: <https://github.com/Mosher-Labs/.github>
