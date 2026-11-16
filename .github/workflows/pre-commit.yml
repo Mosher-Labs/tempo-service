@@ -1,0 +1,12 @@
+---
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions: read-all
+
+jobs:
+  pre-commit:
+    uses: "Mosher-Labs/.github/.github/workflows/pre-commit.yml@079c12894bb1f077a29108c693dc8a1226ed160e" # v0.12.4

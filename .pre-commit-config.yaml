@@ -1,0 +1,46 @@
+---
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: detect-private-key
+      - id: double-quote-string-fixer
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/adrienverge/yamllint
+    rev: cba56bcde1fdd01c1deb3f945e69764c291a6530  # frozen: v1.38.0
+    hooks:
+      - id: yamllint
+  - repo: https://github.com/markdownlint/markdownlint
+    rev: 7810020e1bf3cb3eef0733cd754bc5bc00a5de5a  # frozen: v0.18.1
+    hooks:
+      - id: markdownlint_docker
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint-docker
+  - repo: https://github.com/bridgecrewio/checkov
+    rev: 3.2.495
+    hooks:
+      - id: checkov_container
+  - repo: https://github.com/mosher-labs/pre-commit-autoupdate
+    rev: 1dd9331aa6ff32c2a28e6ab25f2d70e98965a4e7  # frozen: v1.2.13
+    hooks:
+      - id: autoupdate
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: 33b50eb042bee26eac0ee96ad84aa9c1b4dccdd8  # frozen: v4.5.0
+    hooks:
+      - id: conventional-pre-commit
