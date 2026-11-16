@@ -1,0 +1,46 @@
+# Builds the image Mosher Labs' k3s cluster runs (homelab-gitops apps/tempo-service)
+# and pushes ghcr.io/mosher-labs/tempo-service:<short sha>. The cluster pins the digest.
+name: Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.13.3
+      - run: uv sync --python 3.12
+      - run: uv run pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: tag
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      # The cluster's nodes are amd64 only.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/mosher-labs/tempo-service:${{ steps.tag.outputs.short }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/Mosher-Labs/tempo-service
+            org.opencontainers.image.revision=${{ github.sha }}

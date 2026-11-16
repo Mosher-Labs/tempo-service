@@ -1,91 +1,93 @@
-# basic-repo-template
+# tempo-service
 
-![GitHub branch status](https://img.shields.io/github/checks-status/mosher-labs/basic-repo-template/main)
-![GitHub Issues](https://img.shields.io/github/issues/mosher-labs/basic-repo-template)
-![GitHub last commit](https://img.shields.io/github/last-commit/mosher-labs/basic-repo-template)
-![GitHub repo size](https://img.shields.io/github/repo-size/mosher-labs/basic-repo-template)
-![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/mosher-labs/basic-repo-template)
-![GitHub License](https://img.shields.io/github/license/mosher-labs/basic-repo-template)
-![GitHub Sponsors](https://img.shields.io/github/sponsors/mosher-labs)
+![GitHub branch status](https://img.shields.io/github/checks-status/mosher-labs/tempo-service/main)
+![GitHub Issues](https://img.shields.io/github/issues/mosher-labs/tempo-service)
+![GitHub last commit](https://img.shields.io/github/last-commit/mosher-labs/tempo-service)
+![GitHub License](https://img.shields.io/github/license/mosher-labs/tempo-service)
 
 ## Introduction
 
-🚀 This repository serves as a basic template for creating new
-repositories. It's designed to be a foundation for structure and
-organization. 🎯
+tempo-service looks up a song's BPM from its artist and title, with no paid
+API. It searches the iTunes Search API (free, no key), downloads the 30 second
+preview, runs Essentia beat detection on it, and caches the result in SQLite.
 
-### 🌍 Key Features
+It exists to fill the gap in `spotify-mcp`'s tempo lookups. spotify-mcp asks
+ReccoBeats first, and tracks ReccoBeats doesn't know need a BPM from
+somewhere else. The plan is for spotify-mcp to call this service inside the
+cluster on a ReccoBeats miss. That isn't wired up yet.
 
-- 📦 A clean, reusable structure for quick repo setup.
-- 🗣️ Language-specific templates can inherit and extend from this base.
-- 🔄 Easily customizable for various projects and use cases.
-
-### ✨ Perfect for
-
-- Developers looking for a clean start 🛠️
-- Language-specific templates 👨‍💻
-- Seamless repository setup for quick deployments ⚡
-
-Feel free to fork, extend, and contribute! 🤝
+It runs on the Mosher Labs k3s cluster from
+`homelab-gitops/apps/tempo-service`, with a ClusterIP Service and no tunnel.
+It has no auth, so it is not exposed outside the cluster.
 
 ## Usage
 
-To use this repository template, simply fork the repo.
+### Run locally
 
 ```bash
-gh repo fork --fork-name <FORK_NAME> --org <ORG_NAME>
+uv sync
+TEMPO_DB=./tempo.db uv run uvicorn app:app --port 8000
 ```
 
-Update the repository settings:
+ffmpeg must be on `PATH`.
+
+### Reach the cluster copy
 
 ```bash
-gh repo edit --add-topic devops,reliability-engineering,axes \
---add-topic infrastructure-as-code,viking,mosher-labs \
---delete-branch-on-merge --enable-discussions=false \
---enable-issues=false --enable-merge-commit=false \
---enable-projects=false --enable-rebase-merge=false \
---enable-wiki=false
+kubectl -n tempo-service port-forward svc/tempo-service 8000:8000
 ```
 
-Create a ruleset for the default branch.
+### Query it
 
-- Ruleset Name: Default branch
-- Enforcement status: Active
-- Target Branches: Default
-- ✅ Restrict deletions
-- ✅ Require linear history
-- ✅ Require signed commits
-- ✅ Require a pull request before merging
-- ✅ Dismiss stale pull request approvals when new commits are pushed
-- ✅ Require conversation resolution before merging
-- ✅ Request pull request review from Copilot
-- Allowed merge methods: "Squash"
-- ✅ Require status checks to pass
-- ✅ Require branches to be up to date before merging
-- ✅ Do not require status checks on creation
-- Status checks that are required: `pre-commit/pre-commit`
-- ✅ Block force pushes
-- ✅ Require code scanning results
+```bash
+curl 'http://localhost:8000/bpm?artist=Survivor&title=Eye%20of%20the%20Tiger'
+curl 'http://localhost:8000/fits?bpm=75&cadence=150'   # fits at half time
+./fill_tempos.py tracks.json http://localhost:8000 > tempos.json
+```
 
-Enable Dependabot.
+`tracks.json` is `[{"id": "<spotify track id>", "artist": "...", "title": "..."}]`.
+Hand the output to Claude, which saves each tempo with spotify-mcp's
+`set_track_tempo`. Confirm entries marked `trust: check` by ear first.
 
-- In Github UI, navigate to the repositories Settings > Code security
-- Enable Dependabot security updates
-- Enable Grouped security updates
-- Enable Dependabot version updates
-- Enable Dependabot on Actions runners
-- CodeQL analysis > Set up > Default
-- Enable Secret scanning
-- Enable Push protection
+### Reading the result
 
-Update the templated information:
+- `bpm` is Essentia's `RhythmExtractor2013` (multifeature) estimate.
+  `percival_bpm` is an independent second estimate.
+- `readings` lists half, normal, and double time. Hip-hop often reads at half
+  time, so a 75 BPM reading fits a 150 steps/min cadence. Use `/fits` to
+  check.
+- `trust: high` means confidence is 3 or more and the two estimators agree,
+  allowing for half or double time. `trust: check` means confirm by ear.
 
-### README.md
+### What testing has shown
 
-- [ ] Replace `basic-repo-template` with your `<FORK_NAME>`
-- [ ] Update the "Introduction" section
-- [ ] Update the "Usage" section
-- [ ] Update the "Contributing" section
+Tested 2026-11-16 against live iTunes from a Mac:
+
+| Track | bpm | percival_bpm | trust | Published tempo |
+| --- | --- | --- | --- | --- |
+| Survivor, Eye of the Tiger | 108.9 | 108.8 | high | about 109 |
+| Daft Punk, Harder Better Faster Stronger | 123.5 | 123.8 | high | about 123.7 |
+| Eminem, Lose Yourself | 172.3 | 86.1 | check | about 86 (171 double) |
+| Wiz Khalifa, Camo Shorts | 404 | | | not in the iTunes catalog |
+
+- `RhythmExtractor2013` reports beat periods in whole onset frames (512
+  samples at 44.1 kHz), so `bpm` can only be 5168 / n. A 128 BPM click track
+  reads as 129.2, and 170 reads as 172.3. Near 128 the steps are about 3 BPM
+  apart. `percival_bpm` is not snapped this way. Cadence matching allows 4%,
+  so this has not mattered yet.
+- The publicly listed tempos above are from memory, not checked against a
+  source.
+
+### Limits
+
+- It only analyzes the 30 second preview, so it misses tempo changes later in
+  a song.
+- iTunes rate-limits hard. The service waits about 3.5 seconds between calls
+  (`ITUNES_MIN_GAP_SECONDS`) and caches every result, so a cold lookup takes
+  about 7 seconds.
+- Songs with no iTunes preview, or whose title doesn't match well enough,
+  return 404.
+- Run one replica. The rate limiter lives in the process.
 
 ## 🔰 Contributing
 
@@ -101,8 +103,6 @@ To run pre-commit hooks locally, without a git commit.
 pre-commit run -a --all-files
 ```
 
-To update pre-commit hooks, this ideally should be ran before a pull request is merged.
-
-```bash
-pre-commit autoupdate
-```
+Run the tests with `uv run pytest`. Merging to `main` builds
+`ghcr.io/mosher-labs/tempo-service:<short sha>`; update the digest in
+`homelab-gitops/apps/tempo-service/application.yaml` to deploy it.
